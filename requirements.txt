@@ -4,4 +4,3 @@ langchain
 langchain-groq
 langchain-community
 ddgs
-DuckDuckGoSearchRun
