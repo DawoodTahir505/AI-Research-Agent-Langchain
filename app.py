@@ -32,6 +32,9 @@ except Exception:
 # 3. AGENT (built once, then reused)
 # ------------------------------------------------------------
 # ------------------------------------------------------------
+# ------------------------------------------------------------
+# 3. AGENT (built once, then reused)
+# ------------------------------------------------------------
 @st.cache_resource
 def get_agent():
     llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0)
