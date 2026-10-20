@@ -41,7 +41,7 @@ def get_agent():
     
     @tool
     def web_search(query: str) -> str:
-        """Search the web for current information."""
+        """Search the web for current information: news, today's events, recent updates."""
         try:
             from duckduckgo_search import DDGS
             with DDGS() as ddgs:
