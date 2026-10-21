@@ -1,6 +1,6 @@
 streamlit
 python-dotenv
-langchain
+langchain>=1.0
 langchain-groq
 langchain-community
 ddgs
