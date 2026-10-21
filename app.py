@@ -38,24 +38,24 @@ except Exception:
 @st.cache_resource
 def get_agent():
     llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0)
-    
+    search = DuckDuckGoSearchRun()
+
     @tool
     def web_search(query: str) -> str:
-        """Search the web for current information: news, today's events, recent updates."""
+        """Search the web for current information."""
         try:
-            from duckduckgo_search import DDGS
-            with DDGS() as ddgs:
-                results = [r for r in ddgs.text(query, max_results=3)]
-                if not results:
-                    return "No results found."
-                return "\n".join([f"Title: {r.get('title')}\nSnippet: {r.get('body')}\nURL: {r.get('href')}\n" for r in results])
+            return search.invoke(query)
         except Exception as e:
-            return f"Search error: {e}"
+            return f"SEARCH_ERROR: {e}"
 
     return create_agent(
         model=llm,
         tools=[web_search],
-        system_prompt="You are a research assistant. Answer clearly and concisely, and mention your sources.",
+        system_prompt=(
+            "You are a research assistant. Always call web_search before answering. "
+            "Cite your sources. If web_search returns SEARCH_ERROR, report the error "
+            "and do not answer from memory."
+        ),
     )
 
 
