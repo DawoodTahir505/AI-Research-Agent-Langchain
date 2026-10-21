@@ -1,10 +1,10 @@
 import os
+import time
 import streamlit as st
 from ddgs import DDGS
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.tools import tool
-from langchain_community.tools import DuckDuckGoSearchRun
 from langchain.agents import create_agent
 
 # ------------------------------------------------------------
@@ -18,8 +18,6 @@ st.set_page_config(
 
 # ------------------------------------------------------------
 # 2. API KEY
-#    Local: read from .env file
-#    Streamlit Cloud: read from Secrets settings
 # ------------------------------------------------------------
 load_dotenv()
 
@@ -38,18 +36,13 @@ def get_agent():
 
     @tool
     def web_search(query: str) -> str:
-        """Search the web for current information."""
+        """Search the web. Returns titles, snippets and links."""
         try:
-            results = DDGS().text(
-                query,
-                region="us-en",
-                max_results=5,
-                backend="duckduckgo,bing,brave",
-            )
+            results = DDGS().text(query, max_results=5)
             if not results:
-                return "SEARCH_ERROR: no results"
+                return "SEARCH_ERROR: no results found"
             return "\n\n".join(
-                f"{r['title']}\n{r['body']}\nSource: {r['href']}" for r in results
+                f"{r['title']}\n{r['body']}\nURL: {r['href']}" for r in results
             )
         except Exception as e:
             return f"SEARCH_ERROR: {e}"
@@ -59,24 +52,36 @@ def get_agent():
         tools=[web_search],
         system_prompt=(
             "You are a research assistant. Always call web_search before answering. "
-            "Cite your sources. If web_search returns SEARCH_ERROR, report the error "
+            "Answer concisely. End with a 'Sources' list of markdown links. "
+            "Use only URLs returned by web_search. Never invent URLs. "
+            "If web_search returns SEARCH_ERROR, report the error "
             "and do not answer from memory."
         ),
     )
 
 
+def ask_agent(messages, retries=3):
+    """Call the agent with exponential backoff."""
+    for attempt in range(retries):
+        try:
+            return get_agent().invoke({"messages": messages})
+        except Exception:
+            if attempt == retries - 1:
+                raise
+            time.sleep(2 ** attempt)  # 1s, 2s
+
+
 # ------------------------------------------------------------
-# 4. SESSION STATE (remembers data between button clicks)
+# 4. SESSION STATE
 # ------------------------------------------------------------
 if "history" not in st.session_state:
-    st.session_state.history = []  # list of (question, answer)
+    st.session_state.history = []  # list of (question, answer), newest first
 
 if "question" not in st.session_state:
     st.session_state.question = ""
 
 
 def set_question(text):
-    """Fill the input box with an example question."""
     st.session_state.question = text
 
 
@@ -109,7 +114,6 @@ with st.sidebar:
 st.title("🔎 AI Research Agent")
 st.caption("Ask any question and get a researched answer.")
 
-# Example questions
 st.write("**Try an example:**")
 examples = [
     "What is data science?",
@@ -125,7 +129,6 @@ for col, example in zip(cols, examples):
         use_container_width=True,
     )
 
-# Question input
 question = st.text_input(
     "Your question",
     key="question",
@@ -143,7 +146,13 @@ if search_clicked:
     else:
         with st.spinner("Researching, please wait..."):
             try:
-                result = get_agent().invoke({"messages": [("user", question)]})
+                # last 5 turns, oldest first
+                messages = []
+                for q, a in reversed(st.session_state.history[:5]):
+                    messages += [("user", q), ("assistant", a)]
+                messages.append(("user", question))
+
+                result = ask_agent(messages)
                 answer = result["messages"][-1].content
                 st.session_state.history.insert(0, (question, answer))
             except Exception as e:
