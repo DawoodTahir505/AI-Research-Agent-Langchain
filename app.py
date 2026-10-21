@@ -1,5 +1,6 @@
 import os
 import streamlit as st
+from ddgs import DDGS
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.tools import tool
@@ -34,13 +35,22 @@ except Exception:
 @st.cache_resource
 def get_agent():
     llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0)
-    search = DuckDuckGoSearchRun()
 
     @tool
     def web_search(query: str) -> str:
         """Search the web for current information."""
         try:
-            return search.invoke(query)
+            results = DDGS().text(
+                query,
+                region="us-en",
+                max_results=5,
+                backend="duckduckgo,bing,brave",
+            )
+            if not results:
+                return "SEARCH_ERROR: no results"
+            return "\n\n".join(
+                f"{r['title']}\n{r['body']}\nSource: {r['href']}" for r in results
+            )
         except Exception as e:
             return f"SEARCH_ERROR: {e}"
 
